@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    canvas { background: #2d5a27; border: 4px solid #1a3a18; display: block; margin: 0 auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    body { background-color: #1a202c; color: white; overflow-x: hidden; }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+  <div class="text-center mb-4">
+    <h1 class="text-4xl font-bold text-yellow-500 mb-2">🤠 獵人 vs 熊 🐻</h1>
+    <p class="text-gray-400">分數: <span id="score" class="text-white text-2xl font-mono">0</span></p>
+  </div>
+
+  <canvas id="gameCanvas" width="400" height="500"></canvas>
+
+  <div class="mt-6 space-x-4 text-center">
+    <div class="flex gap-4 justify-center mb-4">
+        <button id="startBtn" onclick="initGame()" class="bg-green-600 hover:bg-green-700 px-8 py-2 rounded-full font-bold transition-all">開始獵捕</button>
+        <button onclick="navToLeaderboard()" class="bg-blue-600 hover:bg-blue-700 px-8 py-2 rounded-full font-bold transition-all">排行榜 (Read)</button>
+    </div>
+    <p class="text-xs text-gray-500">控制方式：左右方向鍵移動，空白鍵或上方向鍵發射子彈</p>
+  </div>
+
+  <!-- 遊戲結束對話框 -->
+  <div id="saveModal" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden z-50">
+    <div class="bg-white text-gray-900 p-8 rounded-xl max-w-sm w-full">
+      <h2 class="text-2xl font-bold mb-2 text-center text-red-600">狩獵結束！</h2>
+      <p class="mb-4 text-center">你的分數：<span id="finalScore" class="font-bold text-green-600 text-xl"></span></p>
+      <div class="mb-4">
+        <label class="block text-sm font-semibold text-gray-600 mb-1">獵人代號：</label>
+        <input type="text" id="playerName" placeholder="例如：最強獵人" class="w-full border-2 border-gray-300 p-2 rounded focus:border-green-500 outline-none">
+      </div>
+      <button onclick="submitScore()" id="submitBtn" class="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700 transition">上傳分數 (Create)</button>
+      <button onclick="document.getElementById('saveModal').classList.add('hidden')" class="w-full mt-2 text-gray-400 text-sm py-1">取消</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let gameActive = false;
+    let score = 0;
+    let hunterX = 200;
+    let bullets = [];
+    let bears = [];
+    let bearSpeed = 2;
+    let frame = 0;
+    let lastFireFrame = 0; // 用於控制發射速率的冷卻時間
+
+    // 鍵盤監聽
+    let keys = {};
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function initGame() {
+      if (gameActive) return;
+      score = 0;
+      bearSpeed = 2;
+      bullets = [];
+      bears = [];
+      hunterX = 200;
+      frame = 0;
+      lastFireFrame = 0;
+      gameActive = true;
+      document.getElementById('startBtn').innerText = "進行中...";
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('score').innerText = "0";
+      document.getElementById('saveModal').classList.add('hidden');
+      loop();
+    }
+
+    function loop() {
+      if (!gameActive) return;
+      update();
+      draw();
+      frame++;
+      requestAnimationFrame(loop);
+    }
+
+    function update() {
+      // 1. 獵人左右移動
+      if (keys['ArrowLeft'] && hunterX > 25) hunterX -= 6;
+      if (keys['ArrowRight'] && hunterX < 375) hunterX += 6;
+      
+      // 2. 手動發射子彈 (修改點：改為偵測鍵盤且加入冷卻時間)
+      // 每 12 幀 (約 0.2 秒) 才能發射一次，防止子彈連成一線
+      if ((keys['Space'] || keys['ArrowUp']) && (frame - lastFireFrame > 12)) {
+        bullets.push({ x: hunterX, y: 440 });
+        lastFireFrame = frame;
+      }
+
+      // 3. 子彈移動邏輯
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        bullets[i].y -= 8;
+        if (bullets[i].y < 0) bullets.splice(i, 1);
+      }
+
+      // 4. 熊的生成邏輯 (隨難度增加)
+      let spawnRate = Math.max(12, 45 - Math.floor(score / 60));
+      if (frame % spawnRate === 0) {
+        bears.push({ 
+          x: Math.random() * 340 + 30, 
+          y: -30,
+          speed: 2 + (score / 300) // 熊的速度隨分數緩慢增加
+        });
+      }
+
+      // 5. 熊的移動與碰撞檢測
+      for (let bi = bears.length - 1; bi >= 0; bi--) {
+        let bear = bears[bi];
+        bear.y += bear.speed;
+        
+        // 失敗條件：熊越過底線 或 碰到獵人
+        if (bear.y > 500 || (Math.abs(bear.x - hunterX) < 25 && bear.y > 440)) {
+          gameOver();
+          return;
+        }
+
+        // 子彈碰撞檢查
+        for (let ui = bullets.length - 1; ui >= 0; ui--) {
+          let bullet = bullets[ui];
+          // 使用簡單的圓形/矩形距離檢測
+          let dist = Math.hypot(bullet.x - bear.x, bullet.y - bear.y);
+          if (dist < 25) {
+            bears.splice(bi, 1);
+            bullets.splice(ui, 1);
+            score += 10;
+            document.getElementById('score').innerText = score;
+            break; // 這隻熊已經被打掉，跳出子彈迴圈
+          }
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, 400, 500);
+      
+      // 繪製背景裝飾 (簡易草地質感)
+      ctx.fillStyle = "#254d20";
+      for(let i=0; i<10; i++) ctx.fillRect(i*50, (frame%100), 2, 20);
+
+      // 繪製獵人 🤠
+      ctx.font = "32px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🤠", hunterX, 465);
+
+      // 繪製子彈 (黃色光點)
+      ctx.fillStyle = "#fbbf24";
+      bullets.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        // 子彈光暈
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "yellow";
+      });
+      ctx.shadowBlur = 0; // 重置光暈
+
+      // 繪製熊 🐻
+      ctx.font = "30px serif";
+      bears.forEach(bear => {
+        ctx.fillText("🐻", bear.x, bear.y);
+      });
+    }
+
+    function gameOver() {
+      gameActive = false;
+      document.getElementById('finalScore').innerText = score;
+      document.getElementById('saveModal').classList.remove('hidden');
+      document.getElementById('startBtn').innerText = "重新開始";
+      document.getElementById('startBtn').disabled = false;
+    }
+
+    function submitScore() {
+      const name = document.getElementById('playerName').value || "無名獵人";
+      const btn = document.getElementById('submitBtn');
+      
+      if (name.trim() === "") return alert("請輸入代號！");
+
+      btn.disabled = true;
+      btn.innerText = "傳送中...";
+
+      google.script.run
+        .withSuccessHandler(res => {
+          alert(res.message);
+          document.getElementById('saveModal').classList.add('hidden');
+          btn.disabled = false;
+          btn.innerText = "上傳分數 (Create)";
+          document.getElementById('playerName').value = "";
+        })
+        .withFailureHandler(err => {
+          alert("儲存失敗：" + err);
+          btn.disabled = false;
+          btn.innerText = "上傳分數 (Create)";
+        })
+        .createScore(name, score);
+    }
+
+    function navToLeaderboard() {
+      google.script.run
+        .withSuccessHandler(url => {
+          window.open(url + "?page=leaderboard", "_top");
+        })
+        .getScriptUrl();
+    }
+  </script>
+</body>
+</html>
