@@ -5,7 +5,7 @@
 
 🎮 遊戲演示
 
-運行網址: [請在此填入您的 GAS 部署網址]
+運行網址: [(https://script.google.com/macros/s/AKfycbw03R2mc_kEOa5p3heB3exwkoXZaGnmKCSaZVpDvljdIAVDVzdHDMpGFqt-O2C3j-rfEg/exec)]
 
 遊戲玩法: 左右方向鍵移動，空白鍵射擊。抵禦熊的攻擊並儲存最高分數！
 
