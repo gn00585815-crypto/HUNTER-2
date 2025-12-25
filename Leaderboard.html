@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 p-8">
+
+  <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
+    <div class="p-6 bg-blue-600 text-white flex justify-between items-center">
+      <h1 class="text-2xl font-bold">🏆 狩獵英雄榜</h1>
+      <button onclick="navToGame()" class="bg-white text-blue-600 px-4 py-1 rounded-lg font-bold hover:bg-gray-100">返回遊戲</button>
+    </div>
+
+    <div class="p-6">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="text-gray-400 border-b">
+            <th class="pb-4">排名</th>
+            <th class="pb-4">獵人名稱 (Update)</th>
+            <th class="pb-4">分數 (Read)</th>
+            <th class="pb-4 text-right">操作 (Delete)</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody">
+          <tr><td colspan="4" class="py-8 text-center text-gray-500">載入中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    window.onload = loadData;
+
+    function loadData() {
+      google.script.run.withSuccessHandler(renderBoard).readScores();
+    }
+
+    function renderBoard(data) {
+      const body = document.getElementById('leaderboardBody');
+      if (data.length === 0) {
+        body.innerHTML = '<tr><td colspan="4" class="text-center py-8">尚無戰績。</td></tr>';
+        return;
+      }
+
+      body.innerHTML = data.map((item, index) => `
+        <tr class="border-b hover:bg-gray-50 transition-colors">
+          <td class="py-4 font-mono text-gray-500">#${index + 1}</td>
+          <td class="py-4">
+            <div class="flex items-center gap-2">
+              <span id="name-${item.id}" class="font-bold text-gray-800">${item.name}</span>
+              <button onclick="editName('${item.id}', '${item.name}')" class="text-xs text-blue-400 hover:text-blue-600">
+                <i class="fas fa-edit"></i>
+              </button>
+            </div>
+          </td>
+          <td class="py-4 text-green-600 font-bold">${item.score}</td>
+          <td class="py-4 text-right">
+            <button onclick="deleteRecord('${item.id}')" class="text-red-400 hover:text-red-600 px-3">
+              <i class="fas fa-trash-alt"></i> 刪除
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function editName(id, oldName) {
+      const newName = prompt("請輸入新的獵人代號：", oldName);
+      if (newName && newName !== oldName) {
+        google.script.run.withSuccessHandler(res => {
+          alert(res.message);
+          loadData();
+        }).updateScoreName(id, newName);
+      }
+    }
+
+    function deleteRecord(id) {
+      if (confirm("確定要移除這名獵人的戰績嗎？")) {
+        google.script.run.withSuccessHandler(res => {
+          alert(res.message);
+          loadData();
+        }).deleteScoreRecord(id);
+      }
+    }
+
+    function navToGame() {
+      google.script.run.withSuccessHandler(url => window.open(url, "_top")).getScriptUrl();
+    }
+  </script>
+</body>
+</html>
